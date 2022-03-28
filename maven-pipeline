@@ -1,0 +1,45 @@
+pipeline {
+    agent {
+            label 'ecs-agent'
+    }      
+    stages {
+        stage("git-checkout"){
+            steps {
+               sh 'sudo apt-get update -y'
+               sh 'sudo apt-get install git -y'
+               git credentialsId: '5d203d0e-2f73-41c1-af62-6490f7fa17fc', url: 'git@github.com:atulyw/student-ui.git'  
+            }
+        }
+        stage("build-mvn"){
+            steps {
+                sh 'apt-get update -y'
+                sh 'apt-get install maven'
+                sh 'mvn clean package'
+            }
+        }
+        stage("push-artifact"){
+            steps {
+                sh 'curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                    unzip awscliv2.zip  
+                    sudo ./aws/install'
+                sh 'aws s3 sync */.war s3://${S3_BUCKET}/'    
+            }
+        }
+        stage("Dev-Deploy"){
+            steps {
+                sh 'ssh -i tomcat.pem ubuntu@{TOMCAT_IP} <<EOF
+                curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                unzip awscliv2.zip  
+                sudo ./aws/install
+                aws s3 sync s3://${S3_BUCKET}/**.war /opt/tomcat/webapps/
+                ./opt/tomcat/bin/startup.sh'
+            }
+        }
+        stage("Prod-Deploy"){
+            steps {
+                echo "Deployed on Web Server - Prod"
+                sh 'echo $JOB_URL'
+            }
+        }        
+    }
+}
